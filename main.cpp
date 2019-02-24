@@ -9,6 +9,9 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <list>
+#include <vector>
+
+using namespace std;
 
 #define QUEUE 2000
 #define ROM_76_1_SEM 2001
@@ -25,6 +28,8 @@ typedef struct {
 } Car;
 
 
+void init(int, char **);
+
 void *start_terminal(void *);
 
 void *start_cars_flow(void *);
@@ -36,12 +41,33 @@ unsigned int period;
 unsigned int maxSize;
 
 int main(int argc, char **argv) {
-
-    serviceTime = static_cast<unsigned int>((argv[0]) ? atoi(argv[0]) : 100);
-    period = static_cast<unsigned int>((argv[1]) ? atoi(argv[1]) : 200);
-    maxSize = static_cast<unsigned int>((argv[2]) ? atoi(argv[2]) : 6);
+    init(argc, argv);
+    cout << serviceTime << " " << period << " " << maxSize << endl;
 
     return 0;
+}
+
+void init(int argc, char **argv) {
+
+    serviceTime = 100;
+    period = 200;
+    maxSize = 6;
+
+    if (argc > 1) {
+        serviceTime = static_cast<unsigned int>(atoi(argv[1]));
+    } else {
+        return;
+    }
+    if (argc > 2) {
+        period = static_cast<unsigned int>(atoi(argv[2]));
+    } else {
+        return;
+    }
+    if(argc > 3) {
+        maxSize = static_cast<unsigned int>(atoi(argv[3]));
+    } else {
+        return;
+    }
 }
 
 void *start_terminal(void *arg) {
@@ -49,15 +75,15 @@ void *start_terminal(void *arg) {
     int fuel_type = 3; //TODO
     int semid, shmid;
     Car *myCar;
-    std::list<Car>* list;
+    vector<Car>* cars;
 
     if ((semid = semget(SEM_ID, 1, PERMS | IPC_CREAT)) < 0) {
         sys_err("terminal : can not get semaphore");
     }
-    if ((shmid = shmget(QUEUE, sizeof(list), PERMS | IPC_CREAT)) < 0) {
+    if ((shmid = shmget(QUEUE, sizeof(cars), PERMS | IPC_CREAT)) < 0) {
         sys_err("server: can not get shared memory segment");
     }
-    if ((list = (std::list<Car>*) shmat(shmid, nullptr, 0)) == nullptr) {
+    if ((cars = (vector<Car> *) shmat(shmid, nullptr, 0)) == nullptr) {
         sys_err("server: shared memory attach error");
     }
 
@@ -68,10 +94,8 @@ void *start_terminal(void *arg) {
 
         semctl(semid, 0, SETVAL, 1);
 
-        /*TODO: Реализовать соответствующую логику обработки машины
-         * Использовать sleep()*/
-        for(Car car: *list){
-            if (car.fuel_type == fuel_type){
+        for (Car car: *cars) {
+            if (car.fuel_type == fuel_type) {
                 myCar = &car;
                 break;
             }
@@ -88,7 +112,7 @@ void *start_terminal(void *arg) {
         sys_err("server: semaphore remove error");
     }
 
-    shmdt(list);
+    shmdt(cars);
     if (shmctl(shmid, IPC_RMID, (struct shmid_ds *) nullptr) < 0) {
         sys_err("server: shared memory remove error");
     }
@@ -98,26 +122,28 @@ void *start_terminal(void *arg) {
 void *start_cars_flow(void *arg) {
 
     int shmid;
-    std::list<Car>* list;
+    void* tempPointer;
+    vector<Car>* cars;
 
-    if ((shmid = shmget(QUEUE, sizeof(list), 0)) < 0) {
+    if ((shmid = shmget(QUEUE, sizeof(cars), 0)) < 0) { // second arg???
         sys_err("client: can not get shared memory segment");
     }
 
-    if ((list = (std::list<Car> *) shmat(shmid, nullptr, 0)) == nullptr) {
+    if ((tempPointer = (list<Car> *) shmat(shmid, nullptr, 0)) == nullptr) {
         sys_err("client: shared memory attach error");
     }
+    cars = new(tempPointer) vector<Car>;
 
     for (int i = 0; i < 150; i++) {
         Car car;
         car.car_id = i;
-        car.fuel_type = 2;
-        if(list->size() < maxSize){
-            list->push_back(car);
+        car.fuel_type = 2;//TODO: get random
+        if (cars->size() < maxSize) {
+            cars->push_back(car);
         }
         sleep(period);
     }
-    shmdt(list);
+    shmdt(cars);
     exit(0);
 }
 
