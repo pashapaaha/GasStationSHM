@@ -8,8 +8,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <list>
-#include <vector>
+#include <time.h>
 
 using namespace std;
 
@@ -49,6 +48,8 @@ int main(int argc, char **argv) {
 
 void init(int argc, char **argv) {
 
+    srand(time(nullptr));
+
     serviceTime = 100;
     period = 200;
     maxSize = 6;
@@ -63,7 +64,7 @@ void init(int argc, char **argv) {
     } else {
         return;
     }
-    if(argc > 3) {
+    if (argc > 3) {
         maxSize = static_cast<unsigned int>(atoi(argv[3]));
     } else {
         return;
@@ -75,15 +76,15 @@ void *start_terminal(void *arg) {
     int fuel_type = 3; //TODO
     int semid, shmid;
     Car *myCar;
-    vector<Car>* cars;
+    Car **cars;
 
     if ((semid = semget(SEM_ID, 1, PERMS | IPC_CREAT)) < 0) {
         sys_err("terminal : can not get semaphore");
     }
-    if ((shmid = shmget(QUEUE, sizeof(cars), PERMS | IPC_CREAT)) < 0) {
+    if ((shmid = shmget(QUEUE, sizeof(Car) * maxSize, PERMS | IPC_CREAT)) < 0) {
         sys_err("server: can not get shared memory segment");
     }
-    if ((cars = (vector<Car> *) shmat(shmid, nullptr, 0)) == nullptr) {
+    if ((cars = (Car **) shmat(shmid, nullptr, 0)) == nullptr) {
         sys_err("server: shared memory attach error");
     }
 
@@ -94,12 +95,14 @@ void *start_terminal(void *arg) {
 
         semctl(semid, 0, SETVAL, 1);
 
-        for (Car car: *cars) {
-            if (car.fuel_type == fuel_type) {
-                myCar = &car;
+        for (int i = 0; i < maxSize; i++) {
+            myCar = cars[i];
+            if (myCar->fuel_type == fuel_type) {
+
                 break;
             }
         }
+
 
         sleep(serviceTime);
 
@@ -122,24 +125,25 @@ void *start_terminal(void *arg) {
 void *start_cars_flow(void *arg) {
 
     int shmid;
-    void* tempPointer;
-    vector<Car>* cars;
+    Car **cars;
 
-    if ((shmid = shmget(QUEUE, sizeof(cars), 0)) < 0) { // second arg???
+    if ((shmid = shmget(QUEUE, sizeof(Car) * maxSize, 0)) < 0) {
         sys_err("client: can not get shared memory segment");
     }
 
-    if ((tempPointer = (list<Car> *) shmat(shmid, nullptr, 0)) == nullptr) {
+    if ((cars = (Car**) shmat(shmid, nullptr, 0)) == nullptr) {
         sys_err("client: shared memory attach error");
     }
-    cars = new(tempPointer) vector<Car>;
 
     for (int i = 0; i < 150; i++) {
         Car car;
         car.car_id = i;
-        car.fuel_type = 2;//TODO: get random
-        if (cars->size() < maxSize) {
-            cars->push_back(car);
+        car.fuel_type = rand() % 4;
+        for(int j = 0; j < maxSize; j++){
+            if(cars[j] == nullptr){
+                cars[j] = &car;
+                break;
+            }
         }
         sleep(period);
     }
