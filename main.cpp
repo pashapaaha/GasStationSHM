@@ -123,7 +123,7 @@ void *start_terminal(void *arg) {
         semctl(semid, 0, SETVAL, 0);
 
         if(needService) {
-            sleep(serviceTime);
+            sleep(serviceTime + (rand() % 2 - 1));
         }
 
         if (flowClosed) {
@@ -185,7 +185,7 @@ void *start_cars_flow(void *arg) {
             }
         }
         semctl(semid, 0, SETVAL, 0);
-        sleep(period);
+        sleep(period + (rand() % 2 - 1));
     }
     flowClosed = true;
     fout.close();
