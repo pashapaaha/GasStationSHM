@@ -18,6 +18,9 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <time.h>
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/value.h>
+#include <jsoncpp/json/reader.h>
 
 using namespace std;
 
@@ -29,7 +32,7 @@ using namespace std;
 typedef struct {
     int id;
     int fuel_type;
-} id_and_type;
+} Car;
 
 void init(int, char **);
 
@@ -40,5 +43,9 @@ void *start_cars_flow(void *);
 void sys_err(const char *);
 
 char* get_fuel_name(int);
+
+void sort_queue(Car*);
+
+void print_queue(Car*);
 
 #endif //GASSTATION_RESORCES_H
